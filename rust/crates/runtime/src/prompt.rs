@@ -40,6 +40,13 @@ pub const FRONTIER_MODEL_NAME: &str = "Opus 4.6";
 const MAX_INSTRUCTION_FILE_CHARS: usize = 4_000;
 const MAX_TOTAL_INSTRUCTION_CHARS: usize = 12_000;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PromptStrategy {
+    #[default]
+    HostedStrictJson,
+    LocalXmlTools,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextFile {
     pub path: PathBuf,
@@ -91,12 +98,22 @@ pub struct SystemPromptBuilder {
     append_sections: Vec<String>,
     project_context: Option<ProjectContext>,
     config: Option<RuntimeConfig>,
+    prompt_strategy: PromptStrategy,
 }
 
 impl SystemPromptBuilder {
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            prompt_strategy: PromptStrategy::HostedStrictJson,
+            ..Default::default()
+        }
+    }
+
+    #[must_use]
+    pub fn with_strategy(mut self, strategy: PromptStrategy) -> Self {
+        self.prompt_strategy = strategy;
+        self
     }
 
     #[must_use]
@@ -416,6 +433,7 @@ pub fn load_system_prompt(
     current_date: impl Into<String>,
     os_name: impl Into<String>,
     os_version: impl Into<String>,
+    strategy: PromptStrategy,
 ) -> Result<Vec<String>, PromptBuildError> {
     let cwd = cwd.into();
     let project_context = ProjectContext::discover_with_git(&cwd, current_date.into())?;
@@ -424,6 +442,7 @@ pub fn load_system_prompt(
         .with_os(os_name, os_version)
         .with_project_context(project_context)
         .with_runtime_config(config)
+        .with_strategy(strategy)
         .build())
 }
 
@@ -694,7 +713,7 @@ mod tests {
         std::env::set_var("HOME", &root);
         std::env::set_var("CLAW_CONFIG_HOME", root.join("missing-home"));
         std::env::set_current_dir(&root).expect("change cwd");
-        let prompt = super::load_system_prompt(&root, "2026-03-31", "linux", "6.8")
+        let prompt = super::load_system_prompt(&root, "2026-03-31", "linux", "6.8", super::PromptStrategy::HostedStrictJson)
             .expect("system prompt should load")
             .join(
                 "

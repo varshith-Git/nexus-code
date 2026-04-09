@@ -1,0 +1,14 @@
+{
+  "agentId": "agent-1775751483578870000",
+  "name": "ship-audit",
+  "description": "Review the branch",
+  "subagentType": "general-purpose",
+  "model": "claude-opus-4-6",
+  "status": "failed",
+  "outputFile": "/Users/as-mac-0272/Desktop/sass/cc/rust/.claw-agents/agent-1775751483578870000.md",
+  "manifestFile": "/Users/as-mac-0272/Desktop/sass/cc/rust/.claw-agents/agent-1775751483578870000.json",
+  "createdAt": "1775751483",
+  "startedAt": "1775751483",
+  "completedAt": "1775751483",
+  "error": "Missing Anthropic credentials. To fix this, set the environment variable:\n  export ANTHROPIC_API_KEY=\"your-api-key\"\n(alternatively, use: ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN)"
+}

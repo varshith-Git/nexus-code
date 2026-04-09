@@ -14,8 +14,10 @@ pub use providers::claw_provider::{AuthSource, ClawApiClient, ClawApiClient as A
 pub use providers::gemini::{GeminiClient, GeminiConfig};
 pub use providers::openai_compat::{OpenAiCompatClient, OpenAiCompatConfig};
 pub use providers::{
-    detect_provider_kind, max_tokens_for_model, resolve_model_alias, ProviderKind,
+    detect_provider_kind, max_tokens_for_model, metadata_for_model, resolve_model_alias,
+    ProviderFuture, ProviderKind, ModelSpec, ModelCapabilities
 };
+pub use providers::local::{detect_local_provider, list_local_models};
 pub use sse::{parse_frame, SseParser};
 pub use types::{
     ContentBlockDelta, ContentBlockDeltaEvent, ContentBlockStartEvent, ContentBlockStopEvent,

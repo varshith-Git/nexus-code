@@ -200,7 +200,12 @@ where
 
             let mut authorized_tools = Vec::new();
 
-            for (index, (tool_use_id, tool_name, input)) in pending_tool_uses.into_iter().enumerate() {
+            for (index, (tool_use_id, tool_name, mut input)) in pending_tool_uses.into_iter().enumerate() {
+                // Synthetically repair malformed JSON (crucial for local LLMs)
+                if let Ok(repaired) = crate::utils::repair_json(&input) {
+                    input = repaired.to_string();
+                }
+
                 let permission_outcome = if let Some(prompt) = prompter.as_mut() {
                     self.permission_policy
                         .authorize(&tool_name, &input, Some(*prompt))

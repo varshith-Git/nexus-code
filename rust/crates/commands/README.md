@@ -1,78 +1,53 @@
 # Claw Commands
 
-This crate manages the "slash commands" used in the Claw Code REPL. It provides a registry of commands, logic for parsing user input, and a unified execution dispatch system.
+This crate manages the "slash commands" used in the Claw Code REPL. It provides a registry of commands, logic for parsing user input, and a unified execution dispatcher for complex workflows.
 
 ## Architecture
 
-Commands are defined as static specifications (`SlashCommandSpec`) that include their name, aliases, summary, and category. Parsing logic identifies these commands in user input and extracts their arguments into a structured `SlashCommand` enum.
+Commands are defined as static specifications (`SlashCommandSpec`) and dispatched through handlers that interact with the `runtime`, `git` workspace, or `plugin` manager.
 
----
-
-## Command Reference
-
-### Core Flow Commands
-These commands manage the basic operation of the agent and current session status.
+## Slash Command Reference
 
 | Command | Usage | When to use | Why? |
 | :--- | :--- | :--- | :--- |
-| **`/help`** | `/help` | When you're unsure of available commands. | Provides a categorized list of all registered slash commands and their aliases. |
-| **`/status`** | `/status` | To see the health of the current session. | Shows elapsed time, message count, and current provider/model state. |
-| **`/compact`** | `/compact` | When a session becomes too long or "unfocused." | Triggers the compaction algorithm to summarize history into a context-efficient state, saving tokens and improving model focus. |
-| **`/model`** | `/model [id]` | When you want to switch LLMs (e.g., from Sonnet to Gemini). | Allows real-time model swapping without losing session context. |
-| **`/permissions`** | `/permissions [mode]` | When you need to elevate or restrict what the agent can do. | Switches between `read-only`, `workspace-write`, and `danger-full-access` security modes. |
-| **`/cost`** | `/cost` | To check your spend for the current session. | Shows a summary of tokens used (input, output, cache) and estimated USD cost. |
+| **`/status`** | `/status` | Checking project health. | Displays current model, token usage, elapsed time, and provider connectivity. |
+| **`/compact`** | `/compact` | When history is too long. | Summarizes previous messages into a single context-block to save tokens and improve model focus. |
+| **`/model`** | `/model [id]` | Switching LLMs. | Hot-swaps the underlying model (e.g., Sonnet -> Gemini) without destroying session history. |
+| **`/permissions`** | `/permissions [mode]` | Security escalation. | Toggles between `read-only`, `workspace-write`, and `danger-full-access` modes. |
+| **`/cost`** | `/cost` | Budget tracking. | Shows real-time spend estimates and token breakdown for the active session. |
+| **`/init`** | `/init` | Project onboarding. | Scans the workspace and generates a tailored `CLAW.md` for the agent. |
+| **`/config`** | `/config [section]` | Debugging settings. | Displays the final merged configuration across all layers (User, Project, Local). |
+| **`/commit`** | `/commit` | Finalizing changes. | Staging all changes and generating a semantic commit message automatically. |
+| **`/branch`** | `/branch [list|create|switch]` | Task branching. | High-level Git branch management without leaving the REPL. |
+| **`/plugins`** | `/plugins [list|install]` | Extending capability. | Manages the Model Context Protocol (MCP) servers and custom tool integrations. |
 
-### Workspace & Memory
-Commands for inspecting and initializing the local workspace environment.
+## Function-Level Documentation
 
-| Command | Usage | When to use | Why? |
-| :--- | :--- | :--- | :--- |
-| **`/init`** | `/init` | At the start of a new project. | Bootstraps a `CLAW.md` file with project-specific instructions that the agent will read on startup. |
-| **`/config`** | `/config [section]` | When debugging why an agent is behaving a certain way. | Inspects merged configuration from user, project, and local sources (env, hooks, plugins). |
-| **`/memory`** | `/memory` | To see why the agent has certain specific context. | Lists all "memory" files (like `CLAW.md`) currently loaded into the agent's system prompt. |
-| **`/diff`** | `/diff` | Before committing changes. | Shows a standard Git diff of all pending workspace changes. |
-| **`/teleport`** | `/teleport <target>` | When navigating large codebases. | Quickly jumps to a file or symbol using the LSP manager's search capabilities. |
-
-### Sessions & Output
-Commands for managing persistence and data export.
-
-| Command | Usage | When to use | Why? |
-| :--- | :--- | :--- | :--- |
-| **`/clear`** | `/clear [--confirm]` | When starting a new task to avoid context pollution. | Safely wipes the current local session history and starts fresh. |
-| **`/resume`** | `/resume <path>` | To continue a task from a specific session file. | Loads a previously saved JSON session into the active REPL. |
-| **`/session`** | `/session [list|switch]` | To jump between different concurrent tasks. | Manages multiple named local sessions, allowing for easy task switching. |
-| **`/export`** | `/export [path]` | When you want to save a conversation for sharing or debugging. | Saves the entire session history to a structured JSON file. |
-
-### Git & Automation
-Commands for high-level repository management and AI-driven workflows.
-
-| Command | Usage | When to use | Why? |
-| :--- | :--- | :--- | :--- |
-| **`/commit`** | `/commit` | After the agent finishes a feature. | Automatically generates a semantic commit message based on changes and executes `git commit`. |
-| **`/pr`** | `/pr [context]` | When ready to submit code. | Drafts a pull request description based on the conversation history. |
-| **`/issue`** | `/issue [context]` | When a bug is found or a feature is requested. | Drafts a GitHub issue with relevant context from the workspace. |
-| **`/bughunter`** | `/bughunter [scope]` | When searching for subtle regressions. | Triggers a specialized prompt flow to audit the codebase for architectural flaws. |
-| **`/ultraplan`** | `/ultraplan [task]` | For complex, multi-step engineering tasks. | Uses a deep reasoning prompt to build an execution plan before the agent starts writing code. |
-
----
+| Function / Method | Description |
+| :--- | :--- |
+| **`SlashCommand::parse`** | Robust parser that handles command names, aliases, and argument tokenization. |
+| **`handle_plugins_slash_command`** | Logic for installing, enabling, and disabling MCP plugins. |
+| **`handle_commit_slash_command`** | Orchestrates Git staging and semantic message generation via an internal agent turn. |
+| **`handle_branch_slash_command`** | Wraps Git operations for safe branch manipulation within the workspace. |
+| **`handle_commit_push_pr_slash_command`** | Full workflow: Commit changes, push to remote, and create a PR via `gh`. |
 
 ## Developer Guide
 
 ### Adding a New Command
-1.  **Define the Variant**: Add the new command (and its arguments) to the `SlashCommand` enum in `src/lib.rs`.
-2.  **Declare the Spec**: Add a `SlashCommandSpec` entry to the `SLASH_COMMAND_SPECS` slice. Ensure you provide a clear summary and appropriate `argument_hint`.
-3.  **Implement Parsing**: Update the `SlashCommand::parse` function to handle the command string and its aliases.
-4.  **Execute**: Implement the handler logic in the `claw-cli` crate or via specialized handlers in `runtime`.
+1.  **Define the Variant**: Add the new command to the `SlashCommand` enum.
+2.  **Declare the Spec**: Add an entry to `SLASH_COMMAND_SPECS` with a category and summary.
+3.  **Implement Handler**: Write the execution logic (ideally abstracted from the UI).
+4.  **Register Aliases**: Ensure common short-forms are mapped in the parser.
 
 ## Current Status
 
-- [x] Full command registry with categories
-- [x] Robust argument parsing via `whitespace` splitting
-- [x] Tab completion support for REPLs
-- [x] Multi-command aliasing (e.g., `/plugin`, `/plugins`, `/marketplace`)
+- [x] **Git Workflow Integration**: High-level branch, worktree, and commit support.
+- [x] **Plugin Management**: Integrated CLI handlers for the MCP ecosystem.
+- [x] **Context Awareness**: Commands like `/memory` and `/config` assist in debugging agent behavior.
+- [x] **Tab Completion**: Integrated with the REPL's input engine.
 
 ## Future Work
 
-- [ ] **`/undo` / `/redo`**: Basic state manipulation for the local session.
-- [ ] **Interactive Command Forms**: Support for complex arguments via TUI prompts.
-- [ ] **Custom Plugin Commands**: Allowing plugins to inject commands directly into this registry.
+- [ ] **`/undo` / `/redo`**: Atomic state reversal for session history.
+- [ ] **Interactive TUI Forms**: Replacing raw string arguments with guided terminal prompts.
+- [ ] **Macro Support**: allowing users to chain slash-commands together for automation.

@@ -1,35 +1,44 @@
-# Claw LSP
+# Claw LSP (Language Server Protocol)
 
-The `lsp` crate provides integration with the Language Server Protocol (LSP). It allows Claw Code to leverage professional-grade static analysis tools to enrich its understanding of your workspace.
+The `lsp` crate provides the integration layer between Claw Code and modern editor tooling. It is responsible for extracting rich "Project Context" by communicating with language servers (like `rust-analyzer` or `pyright`).
 
 ## Architecture
 
-This crate implements an LSP client that communicates with server binaries (like `rust-analyzer` or `pyright`) via JSON-RPC over standard I/O.
+This crate implements a subset of the Language Server Protocol (LSP) focused on read-only diagnostics and symbol navigation. It allows the agent to see the workspace "as a compiler sees it."
 
-### Key Components
+### Key Features
 
-- **`LspManager`**: The top-level orchestrator. It manages the lifecycle of multiple LSP servers and provides an aggregated view of workspace diagnostics and symbols.
-- **`LspClient`**: Handles the low-level JSON-RPC message passing, document synchronization (`didOpen`, `didChange`, etc.), and request/response matching.
-- **`LspContextEnrichment`**: A utility that extracts relevant information (like current definitions or nearby references) and formats it into a prompt section for the LLM.
-- **`WorkspaceDiagnostics`**: Collects and prioritizes errors and warnings across the entire project.
+- **Project Context**: Aggregates diagnostics (errors/warnings), project-wide symbol definitions, and file trees.
+- **Diagnostic Extraction**: Pulls real-time compiler feedback into the agent's context to help with debugging.
+- **Symbol Resolution**: Allows the agent to "Go to definition" across the workspace without opening every file.
 
-## Features
+## Function-Level Documentation
 
-- **Diagnostic Tracking**: Real-time monitoring of compilation errors and linting warnings.
-- **Symbol Navigation**: Support for "Go to Definition" and "Find References" directly from the REPL.
-- **Prompt Enrichment**: Automatically injects relevant code context into the agent's prompt based on the cursor position or current focus.
-- **Multi-Server Support**: Can concurrently run different language servers for polyglot repositories.
+| Function / Method | Description |
+| :--- | :--- |
+| **`LspManager::initialize_project`** | Spawns and handshakes with a language server implementation for the current workspace. |
+| **`LspManager::fetch_diagnostics`** | Returns a list of all current compiler errors and warnings in a structured format. |
+| **`ProjectContext::build`** | Synthesizes a high-level summary of the codebase for the agent's system prompt. |
+| **`LspServerConfig`** | Defines how to launch specific servers (e.g., command path, environment, initialization options). |
+
+## Developer Guide
+
+### Context Synthesis
+The `lsp` crate is used by the `runtime` to build the "Repository shape" portion of the system prompt. By using the LSP instead of raw file reads, Claw can understand:
+- Which files are primary entry points.
+- Where definitions of structs and functions are located.
+- What errors are currently preventing the project from building.
 
 ## Current Status
 
-- [x] JSON-RPC client implementation
-- [x] Document synchronization
-- [x] Diagnostic collection (PublishDiagnostics)
-- [x] Go to Definition / References
-- [x] Prompt context enrichment
+- [x] **Rust-Analyzer Integration**: Specific optimizations for Rust projects.
+- [x] **Diagnostic Reporting**: Streaming of errors/warnings into the agent turn.
+- [x] **Symbol Workspace Search**: (Partial) Support for locating definitions.
+- [x] **Process Management**: Robust spawning and termination of child LSP processes.
 
 ## Future Work
 
-- [ ] **Auto-Discovery**: Automatically detect and start the appropriate LSP server for the current workspace.
-- [ ] **Semantic Highlighting**: Use LSP data for more accurate syntax highlighting in the REPL.
-- [ ] **Code Actions**: Allow the agent to suggest and apply LSP-provided quick-fixes.
+- [ ] **Multi-language Support**: Standardized configurations for Python, TypeScript, and Go language servers.
+- [ ] **Interactive Symbols**: Allowing the agent to trigger "Rename" or "Reference Search" directly.
+- [ ] **LSP SSE/TCP**: Support for connecting to remote language servers.
+- [ ] **Auto-Installation**: Automatically downloading and configuring language servers for missing environments.

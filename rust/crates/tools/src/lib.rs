@@ -1646,6 +1646,7 @@ fn build_agent_system_prompt(subagent_type: &str) -> Result<Vec<String>, String>
         DEFAULT_AGENT_SYSTEM_DATE.to_string(),
         std::env::consts::OS,
         "unknown",
+        runtime::PromptStrategy::HostedStrictJson,
     )
     .map_err(|error| error.to_string())?;
     prompt.push(format!(
@@ -3452,6 +3453,17 @@ mod tests {
         let _guard = env_lock()
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+            
+        let dir = temp_path("codex-home-skills");
+        let skills_dir = dir.join("skills").join("help");
+        fs::create_dir_all(&skills_dir).expect("create mock skills dir");
+        fs::write(
+            skills_dir.join("SKILL.md"),
+            "# Help\nGuide on using oh-my-codex plugin",
+        )
+        .expect("write mock SKILL.md");
+        std::env::set_var("CODEX_HOME", &dir);
+
         let result = execute_tool(
             "Skill",
             &json!({
@@ -3486,6 +3498,9 @@ mod tests {
             .as_str()
             .expect("path")
             .ends_with("/help/SKILL.md"));
+            
+        std::env::remove_var("CODEX_HOME");
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

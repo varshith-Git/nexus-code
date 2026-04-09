@@ -8,6 +8,9 @@ pub struct Cli {
     #[arg(long, default_value = "claude-opus-4-6")]
     pub model: String,
 
+    #[arg(long, help = "Auto-detect and use a local LLM (Ollama or LM Studio)")]
+    pub local: bool,
+
     #[arg(long, value_enum, default_value_t = PermissionMode::DangerFullAccess)]
     pub permission_mode: PermissionMode,
 
@@ -33,6 +36,10 @@ pub enum Command {
     Logout,
     /// Run a non-interactive prompt and exit
     Prompt { prompt: Vec<String> },
+    /// Run system health checks (e.g. check for local model servers)
+    Doctor,
+    /// List installed local models
+    Models,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]

@@ -4,43 +4,47 @@ The `api` crate is the foundational layer of Claw Code, responsible for all comm
 
 ## Architecture
 
-The crate is built around a "dispatch" model where a central `ProviderClient` handles routing requests to specific provider implementations.
+The crate is built around a dynamic "Model Specification" model. Instead of hardcoded registries, it uses a flexible `ModelSpec` structure to define capabilities and routing.
 
 ### Key Components
 
-- **`ProviderClient`**: The main dispatcher enum. It encapsulates all supported clients (Anthropic, Gemini, OpenAI-compat) and routes `stream()` calls to the appropriate backend.
-- **`ApiClient`**: A trait (primarily implemented through `ClawApiClient` but abstracted for the runtime) that defines how to interact with an LLM.
-- **`SseParser`**: A robust, stateful Server-Sent Events (SSE) parser that handles the raw byte streams from LLM providers and converts them into structured `StreamEvent` objects.
-- **`types`**: Data models for the unified API, including `InputMessage`, `ToolDefinition`, and `Usage`.
+- **`ProviderClient`**: The primary entry point. A unified dispatcher that handles Anthropic, Gemini, OpenAI-compatible, and Local-first providers.
+- **`ModelSpec`**: A structured definition of a model's provider, name, base URL, and authentication requirements.
+- **`ModelCapabilities`**: Tracks what a specific model can do (Tool calling, streaming, max context tokens).
+- **`SseParser`**: A robust, stateful Server-Sent Events (SSE) parser that handles raw byte streams and converts them into structured `StreamEvent` objects.
+- **Local Autodetection**: Built-in logic to scan for local inference servers (Ollama, LM Studio) on standard network ports.
 
-## Supported Backend Providers
+## Function-Level Documentation
 
-Claw Code currently supports:
-- **Anthropic**: Native integration with Claude 3.5 Sonnet/Haiku.
-- **Gemini**: Integration via the Google Generative AI API (Gemini 1.5/2.0).
-- **OpenRouter / OpenAI-Compat**: A generic wrapper that supports any OpenAI-compatible endpoint. This includes deep integration with OpenRouter (including custom headers for platform attribution).
+| Function / Method | Description |
+| :--- | :--- |
+| **`resolve_model_alias`** | Maps short names (e.g., `sonnet`, `gemini`) to full canonical model strings. |
+| **`detect_provider_kind`** | Infers the correct `ProviderKind` from a model name or prefix. |
+| **`ProviderClient::stream`** | The core method for starting a streaming chat completion request. |
+| **`detect_local_provider`** | Asynchronously probes `localhost` for running Ollama or LM Studio instances. |
+| **`list_local_models`** | Queries local providers for a list of currently downloaded/cached model weights. |
+| **`check_health`** | Performs a connectivity check against a specific provider endpoint. |
 
 ## Developer Guide
 
-### Adding a New Provider
-1.  Add a new variant to `ProviderKind` in `crates/api/src/providers/mod.rs`.
-2.  Implement the provider-specific logic in `crates/api/src/providers/<name>.rs`.
-3.  Update the `ProviderClient` enum in `crates/api/src/client.rs` to include the new backend.
-4.  Ensure that the new provider correctly translates its specific response format into the unified `StreamEvent` type.
+### Working with Providers
+The crate abstracts away the specifics of different API flavors. To add a new provider:
+1. Add a variant to `ProviderKind`.
+2. Implement the translation logic between Claw's `MessageRequest` and the provider's native JSON schema.
+3. Hook the implementation into `ProviderClient`.
 
-### Environment Handling
-The crate includes built-in helpers for resolving API keys from environment variables (e.g., `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`) and provides actionable error messages when credentials are missing.
+### Local Inference
+The `providers/local.rs` module handles the complexities of zero-auth local servers. It uses `detect_local_provider` during CLI startup to determine if it should steer traffic toward a local backend if the user passes the `--local` flag.
 
 ## Current Status
 
-- [x] Anthropic (native)
-- [x] Gemini (native)
-- [x] OpenRouter (OpenAI-compatible)
-- [x] Streaming support (SSE)
-- [x] Usage tracking (token counts)
+- [x] **ModelSpec Refactor**: Moved from hardcoded metadata to dynamic model resolutions.
+- [x] **Local LLM Support**: Native detection for Ollama and LM Studio.
+- [x] **Automatic JSON Recovery**: (Handled in runtime, but API provides the signals).
+- [x] **Unified SSE Parsing**: Handles multi-line data and nested JSON chunks correctly.
 
 ## Future Work
 
-- [ ] Support for **Groq** and **DeepSeek** native protocols (currently handled via OpenAI-compat).
-- [ ] Improved multi-modal input support (images/documents).
-- [ ] Advanced `ToolChoice` logic for force-calling specific tools.
+- [ ] **Native Protocols**: Implement direct native protocols for Groq and DeepSeek to bypass some OpenAI-compatibility overhead.
+- [ ] **Multi-modal Support**: Adding `image` and `document` block types to the message specification.
+- [ ] **Streaming Reasoning**: Support for "thinking" or "reasoning" block types (e.g., DeepSeek R1 / OpenAI o1).

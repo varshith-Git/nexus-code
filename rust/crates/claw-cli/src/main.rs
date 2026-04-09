@@ -92,21 +92,78 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         } => resume_session(&session_path, &commands),
         CliAction::Prompt {
             prompt,
-            model,
+            mut model,
             output_format,
             allowed_tools,
             permission_mode,
-        } => LiveCli::new(model, true, allowed_tools, permission_mode)?
-            .run_turn_with_output(&prompt, output_format)?,
+            use_local_auto,
+        } => {
+            if use_local_auto {
+                model = auto_detect_local_model();
+            }
+            LiveCli::new(model, true, allowed_tools, permission_mode)?
+                .run_turn_with_output(&prompt, output_format)?
+        }
         CliAction::Login => run_login()?,
         CliAction::Logout => run_logout()?,
         CliAction::Init => run_init()?,
         CliAction::Repl {
-            model,
+            mut model,
             allowed_tools,
             permission_mode,
-        } => run_repl(model, allowed_tools, permission_mode)?,
+            use_local_auto,
+        } => {
+            if use_local_auto {
+                model = auto_detect_local_model();
+            }
+            run_repl(model, allowed_tools, permission_mode)?
+        }
         CliAction::Help => print_help(),
+        CliAction::Doctor => run_doctor()?,
+        CliAction::Models => run_models()?,
+    }
+    Ok(())
+}
+
+fn auto_detect_local_model() -> String {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    match rt.block_on(api::detect_local_provider()) {
+        Some(api::ProviderKind::Ollama) => "ollama/deepseek-coder-v2".to_string(), // Better default proxy for ollama
+        Some(api::ProviderKind::LocalOpenAICompat) => "local/lmstudio".to_string(),
+        _ => {
+            eprintln!("Failed to detect any local LLM runner (Ollama or LM Studio).");
+            eprintln!("Falling back to Claude...");
+            "claude-opus-4-6".to_string()
+        }
+    }
+}
+
+fn run_doctor() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Checking local LLM capabilities...");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    match rt.block_on(api::detect_local_provider()) {
+        Some(api::ProviderKind::Ollama) => println!("✅ Ollama detected on http://localhost:11434"),
+        Some(api::ProviderKind::LocalOpenAICompat) => println!("✅ LM Studio / OpenAI compat API detected on http://localhost:1234"),
+        _ => println!("❌ No local LLM servers detected (tried 11434, 1234)"),
+    }
+    Ok(())
+}
+
+fn run_models() -> Result<(), Box<dyn std::error::Error>> {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    if let Some(provider) = rt.block_on(api::detect_local_provider()) {
+        match rt.block_on(api::list_local_models(provider)) {
+            Ok(models) if models.is_empty() => println!("No local models found."),
+            Ok(models) => {
+                println!("Available local models:");
+                for model in models {
+                    println!("  - {model}");
+                }
+            }
+            Err(e) => println!("Failed to list models: {e}"),
+        }
+    } else {
+        println!("No local LLM servers detected.");
     }
     Ok(())
 }
@@ -135,6 +192,7 @@ enum CliAction {
         output_format: CliOutputFormat,
         allowed_tools: Option<AllowedToolSet>,
         permission_mode: PermissionMode,
+        use_local_auto: bool,
     },
     Login,
     Logout,
@@ -143,9 +201,11 @@ enum CliAction {
         model: String,
         allowed_tools: Option<AllowedToolSet>,
         permission_mode: PermissionMode,
+        use_local_auto: bool,
     },
-    // prompt-mode formatting is only supported for non-interactive runs
     Help,
+    Doctor,
+    Models,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,6 +232,7 @@ fn parse_args(args: &[String]) -> Result<CliAction, String> {
     let mut output_format = CliOutputFormat::Text;
     let mut permission_mode = default_permission_mode();
     let mut wants_version = false;
+    let mut use_local_auto = false;
     let mut allowed_tool_values = Vec::new();
     let mut rest = Vec::new();
     let mut index = 0;
@@ -180,6 +241,10 @@ fn parse_args(args: &[String]) -> Result<CliAction, String> {
         match args[index].as_str() {
             "--version" | "-V" => {
                 wants_version = true;
+                index += 1;
+            }
+            "--local" => {
+                use_local_auto = true;
                 index += 1;
             }
             "--model" => {
@@ -231,6 +296,7 @@ fn parse_args(args: &[String]) -> Result<CliAction, String> {
                     output_format,
                     allowed_tools: normalize_allowed_tools(&allowed_tool_values)?,
                     permission_mode,
+                    use_local_auto,
                 });
             }
             "--print" => {
@@ -271,6 +337,7 @@ fn parse_args(args: &[String]) -> Result<CliAction, String> {
             model,
             allowed_tools,
             permission_mode,
+            use_local_auto,
         });
     }
     if matches!(rest.first().map(String::as_str), Some("--help" | "-h")) {
@@ -301,10 +368,13 @@ fn parse_args(args: &[String]) -> Result<CliAction, String> {
                 prompt,
                 model,
                 output_format,
-                allowed_tools,
+                allowed_tools: allowed_tools.clone(),
                 permission_mode,
+                use_local_auto,
             })
         }
+        "doctor" => Ok(CliAction::Doctor),
+        "models" => Ok(CliAction::Models),
         other if other.starts_with('/') => parse_direct_slash_cli_action(&rest),
         _other => Ok(CliAction::Prompt {
             prompt: rest.join(" "),
@@ -312,6 +382,7 @@ fn parse_args(args: &[String]) -> Result<CliAction, String> {
             output_format,
             allowed_tools,
             permission_mode,
+            use_local_auto,
         }),
     }
 }
@@ -596,7 +667,7 @@ fn wait_for_oauth_callback(
 }
 
 fn print_system_prompt(cwd: PathBuf, date: String) {
-    match load_system_prompt(cwd, date, env::consts::OS, "unknown") {
+    match load_system_prompt(cwd, date, env::consts::OS, "unknown", runtime::PromptStrategy::HostedStrictJson) {
         Ok(sections) => println!("{}", sections.join("\n\n")),
         Err(error) => {
             eprintln!("failed to build system prompt: {error}");
@@ -2564,6 +2635,7 @@ fn build_system_prompt() -> Result<Vec<String>, Box<dyn std::error::Error>> {
         DEFAULT_DATE,
         env::consts::OS,
         "unknown",
+        runtime::PromptStrategy::HostedStrictJson,
     )?)
 }
 
@@ -4147,6 +4219,7 @@ mod tests {
                 model: DEFAULT_MODEL.to_string(),
                 allowed_tools: None,
                 permission_mode: PermissionMode::DangerFullAccess,
+                use_local_auto: false,
             }
         );
     }
@@ -4166,6 +4239,7 @@ mod tests {
                 output_format: CliOutputFormat::Text,
                 allowed_tools: None,
                 permission_mode: PermissionMode::DangerFullAccess,
+                use_local_auto: false,
             }
         );
     }
@@ -4187,6 +4261,7 @@ mod tests {
                 output_format: CliOutputFormat::Json,
                 allowed_tools: None,
                 permission_mode: PermissionMode::DangerFullAccess,
+                use_local_auto: false,
             }
         );
     }
@@ -4207,6 +4282,7 @@ mod tests {
                 output_format: CliOutputFormat::Text,
                 allowed_tools: None,
                 permission_mode: PermissionMode::DangerFullAccess,
+                use_local_auto: false,
             }
         );
     }
@@ -4240,6 +4316,7 @@ mod tests {
                 model: DEFAULT_MODEL.to_string(),
                 allowed_tools: None,
                 permission_mode: PermissionMode::ReadOnly,
+                use_local_auto: false,
             }
         );
     }
@@ -4262,6 +4339,7 @@ mod tests {
                         .collect()
                 ),
                 permission_mode: PermissionMode::DangerFullAccess,
+                use_local_auto: false,
             }
         );
     }

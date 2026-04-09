@@ -1,39 +1,60 @@
 # Claw Tools
 
-`tools` is the standard library of workspace-aware tools that Claw Code provides to the AI agent. It defines the schemas, validation logic, and execution handlers for interacting with the file system, running commands, and searching the web.
+The `tools` crate defines the standard library of capabilities available to the Claw Code agent. It provides a structured registry for tool definitions and a unified dispatcher for their execution.
 
 ## Architecture
 
-This crate provides a centralized registry of tool definitions that are compatible with the LLM providers in the `api` crate.
+Tools are exposed as `ToolSpec` objects which define their name, human-readable description, JSON input schema, and required security permissions.
 
-### Key Tools
+### Feature Areas
 
-- **`ReadFile`**: Reads the contents of one or more files from the workspace.
-- **`WriteFile`**: Creates or completely overwrites a file.
-- **`EditFile`**: Applies surgical, line-based modifications to existing files using a structured patch format.
-- **`Bash`**: Executes shell commands in the workspace environment (sandboxed by the runtime).
-- **`ListDir` / `GlobSearch`**: Navigates the workspace and finds files based on patterns.
-- **`GrepSearch`**: Performs fast, text-based searches across the entire project (powered by logic in `runtime`).
-- **`TodoWrite`**: Manages a structured "Todo" list for the session to help the agent track multi-step progress.
-- **`SearchWeb` / `FetchUrl`**: Allows the agent to gather external information and read web documentation.
+- **Filesystem**: High-performance, sandboxed file operations (`read_file`, `write_file`, `edit_file`).
+- **Discovery**: Workspace-wide search utilities (`glob_search`, `grep_search`).
+- **Execution**: Secure terminal command execution (`bash`).
+- **Agentic**: Specialized tools for spawning child agents (`agent`) or loading expert knowledge (`skill`).
+- **External**: Integration with web intelligence (`WebSearch`, `WebFetch`).
 
-## User Interface
+## Built-in Tool Reference
 
-Each tool is defined with:
-1.  **Name**: Unique identifier (e.g., `bash`, `read_file`).
-2.  **Description**: Clear instructions for the LLM on when and how to use the tool.
-3.  **Input Schema**: A JSON Schema validating the arguments passed by the model.
+| Tool | Permission | Description |
+| :--- | :--- | :--- |
+| **`read_file`** | `read-only` | Reads text content from a specific workspace path (supports offset/limit). |
+| **`write_file`** | `workspace-write` | Creates or overwrites a file with provided content. |
+| **`edit_file`** | `workspace-write` | Performs precise, chunk-based edits to existing files using Target/Replacement blocks. |
+| **`glob_search`** | `read-only` | Finds files matching a pattern (e.g., `**/*.rs`). |
+| **`grep_search`** | `read-only` | Searches for text patterns across the workspace using `ripgrep` semantics. |
+| **`bash`** | `danger-full-access` | Executes a shell command with optional background running and sandbox disabling. |
+| **`agent`** | `danger-full-access` | Spawns a sub-agent to handle a sub-task independently with its own context. |
+| **`skill`** | `read-only` | Loads expert-authored instructions (`SKILL.md`) for specialized domains. |
+| **`WebSearch`** | `read-only` | Searches the public internet for documentation or current information. |
+
+## Function-Level Documentation
+
+| Function / Method | Description |
+| :--- | :--- |
+| **`mvp_tool_specs`** | Returns the list of all "minimum viable product" built-in tool specifications. |
+| **`execute_tool`** | The main dispatcher that routes raw JSON tool calls to the correct internal handler. |
+| **`execute_agent`** | Orchestrates the lifecycle of a sub-agent, including context synthesis and result reporting. |
+| **`execute_skill`** | Resolves and loads local domain-specific instructions from the `.agents/skills` registry. |
+| **`GlobalToolRegistry`** | Normalizes and manages both built-in and plugin-provided tools. |
+
+## Developer Guide
+
+### Implementing a New Tool
+1.  **Define the Schema**: Use JSON Schema to define the input parameters the LLM should provide.
+2.  **Assign Permissions**: Determine the minimum `PermissionMode` required (e.g., `read-only` for search tools).
+3.  **Implement the Handler**: Add the logic to `execute_tool` (or a dedicated module).
+4.  **Register as MVP**: Add the spec to the `mvp_tool_specs` vector in `lib.rs`.
 
 ## Current Status
 
-- [x] Comprehensive file operation tools
-- [x] Sandboxed Bash execution
-- [x] Persistent Todo management
-- [x] Structured Grep/Glob search
-- [x] Basic web fetch support
+- [x] **Sandboxed execution**: Bash and file tools respect security boundaries.
+- [x] **Parallel Dispatch**: Integrated with the runtime for concurrent tool runs.
+- [x] **Multi-agent capability**: Support for child runtimes via the `agent` tool.
+- [x] **Symbol navigation**: (Via LSP integration hooks).
 
 ## Future Work
 
-- [ ] **Advanced Semantic Search**: Integration with a local vector database for better context discovery.
-- [ ] **Richer Web Tools**: Support for specialized search engines and documentation scrapers.
-- [ ] **Network Tools**: Basic ping/curl utilities for debugging local services.
+- [ ] **Interactive Tools**: Tools that can prompt the user for additional input during execution.
+- [ ] **Visual Reasoning**: Support for tools that can inspect screenshots or UI layouts.
+- [ ] **Native IDE Integration**: Tools that directly manipulate editor state (VS Code/JetBrains).

@@ -7,143 +7,91 @@ The Rust workspace is the current main product surface. The `claw` binary provid
 ## Current status
 
 - **Version:** `0.1.0`
-- **Release stage:** initial public release, source-build distribution
+- **Release stage:** Initial public release, source-build distribution
 - **Primary implementation:** Rust workspace in this repository
 - **Platform focus:** macOS and Linux developer workstations
 
-## Install, build, and run
+## Authentication & Providers
 
-### Prerequisites
+Claw Code supports multiple backend providers through a unified interface.
 
-- Rust stable toolchain
-- Cargo
-- Provider credentials for the model you want to use
+### Hosted Providers
+Set the relevant environment variables for your chosen provider:
+- **Anthropic**: `ANTHROPIC_API_KEY`
+- **Gemini**: `GEMINI_API_KEY`
+- **Grok**: `XAI_API_KEY`
+- **DeepSeek**: `DEEPSEEK_API_KEY`
+- **OpenRouter**: `OPENROUTER_API_KEY`
 
-### Authentication
+### Local LLMs (Ollama / LM Studio)
+Claw Code features a **zero-cost, privacy-first local inference layer**. It can auto-detect locally running model servers on standard ports (11434 for Ollama, 1234 for LM Studio).
 
-Anthropic-compatible models:
-
+Run with the `--local` flag to enable auto-detection:
 ```bash
-export ANTHROPIC_API_KEY="..."
-# Optional when using a compatible endpoint
-export ANTHROPIC_BASE_URL="https://api.anthropic.com"
+cargo run --bin claw -- --local
 ```
 
-Grok models:
-
-```bash
-export XAI_API_KEY="..."
-# Optional when using a compatible endpoint
-export XAI_BASE_URL="https://api.x.ai"
-```
-
-Gemini models:
-
-```bash
-export GEMINI_API_KEY="..."
-# Optional when using a compatible endpoint
-export GEMINI_BASE_URL="https://generativelanguage.googleapis.com"
-```
-
-DeepSeek models:
-
-```bash
-export DEEPSEEK_API_KEY="..."
-# Optional when using a compatible endpoint
-export DEEPSEEK_BASE_URL="https://api.deepseek.com/v1"
-```
-
-OpenRouter models:
-
-```bash
-export OPENROUTER_API_KEY="..."
-# Optional when using a compatible endpoint
-export OPENROUTER_BASE_URL="https://openrouter.ai/api/v1"
-```
-
-OAuth login is also available:
-
+### OAuth Verification
+For supported platforms, you can use the built-in OAuth flow:
 ```bash
 cargo run --bin claw -- login
 ```
 
-### Install locally
+## Install and Run
 
+### Install locally
 ```bash
 cargo install --path crates/claw-cli --locked
 ```
 
-### Build from source
-
-```bash
-cargo build --release -p claw-cli
-```
-
 ### Run
-
-From the workspace:
-
 ```bash
-cargo run --bin claw -- --help
-cargo run --bin claw --
-cargo run --bin claw -- prompt "summarize this workspace"
-cargo run --bin claw -- --model sonnet "review the latest changes"
-cargo run --bin claw -- --model gemini "summarize this repo"
-cargo run --bin claw -- --model gemini-flash "explain crates/api"
-cargo run --bin claw -- --model gemini-2.5-pro "review the latest changes"
-cargo run --bin claw -- --model deepseek "summarize the README"
-cargo run --bin claw -- --model deepseek-reasoner "find buggy code"
-cargo run --bin claw -- --model openrouter/mistralai/mistral-7b-instruct "What's the meaning of life?"
-```
+# Start interactive REPL
+claw
 
-From the release build:
+# Start REPL with local model auto-detection
+claw --local
 
-```bash
-./target/release/claw
-./target/release/claw prompt "explain crates/runtime"
+# One-shot prompt
+claw prompt "summarize this workspace"
+
+# Health check local LLM connectivity
+claw doctor
+
+# List available local models
+claw models
 ```
 
 ## Supported capabilities
 
-- **Multi-threaded Parallel Tool Execution** for ultra-fast, concurrent processing of complex agent workflows
-- Native integration with high-performance LLMs (Claude, Grok, Gemini, DeepSeek, OpenRouter) with deterministic multi-tool handling
-- Interactive REPL and one-shot prompt execution
-- Saved-session inspection and resume flows
-- Built-in workspace tools for shell, file read/write/edit, search, web fetch/search, todos, and notebook updates
-- Slash commands for status, compaction, config inspection, diff, export, session management, and version reporting
-- Local agent and skill discovery with `claw agents` and `claw skills`
-- Plugin discovery and management through the CLI and slash-command surfaces
-- OAuth login/logout plus model/provider selection from the command line
-- Workspace-aware instruction/config loading (`CLAW.md`, config files, permissions, plugin settings)
+- **Local LLM Intelligence**: Connect to Ollama or LM Studio for 100% private, offline coding.
+- **Multi-threaded Parallel Tool Execution**: Concurrent processing of complex agent workflows for ultra-low latency.
+- **Robust Tool Calling**: Built-in JSON recovery layers ensure stability even with smaller local models.
+- **Model Context Protocol (MCP)**: Extend functionality with external tool servers (Stdio/SSE).
+- **Interactive REPL**: Rich terminal experience with markdown rendering and Vim-mode support.
+- **Granular Permissions**: Fine-grained security modes (`read-only`, `workspace-write`, `danger-full-access`).
+- **Slash Commands**: High-level controls for history compaction, cost tracking, git workflows, and more.
 
-## Current limitations
+## Architecture
 
-- Public distribution is **source-build only** today; this workspace is not set up for crates.io publishing
-- GitHub CI verifies `cargo check`, `cargo test`, and release builds, but automated release packaging is not yet present
-- Current CI targets Ubuntu and macOS; Windows release readiness is still to be established
-- Some live-provider integration coverage is opt-in because it requires external credentials and network access
-- The command surface may continue to evolve during the `0.x` series
+The project is organized into modular crates:
 
-## Implementation
-
-The Rust workspace is the active product implementation. It currently includes these crates:
-
-- `claw-cli` — user-facing binary
-- `api` — provider clients and streaming
-- `runtime` — sessions, config, permissions, prompts, and runtime loop
-- `tools` — built-in tool implementations
-- `commands` — slash-command registry and handlers
-- `plugins` — plugin discovery, registry, and lifecycle support
-- `lsp` — language-server protocol support types and process helpers
-- `server` and `compat-harness` — supporting services and compatibility tooling
+- **[`claw-cli`](crates/claw-cli/README.md)**: User-facing binary, REPL engine, and CLI command handling.
+- **[`api`](crates/api/README.md)**: Unified provider clients, streaming SSE parser, and local model detection.
+- **[`runtime`](crates/runtime/README.md)**: The "brain" — handles the agentic loop, parallel execution, permissions, and sessions.
+- **[`tools`](crates/tools/README.md)**: Built-in toolset (Filesystem, Shell, Web Search, Multi-agent).
+- **[`commands`](crates/commands/README.md)**: REPL slash-command registry and handlers (Git, Plugins, Worktrees).
+- **[`plugins`](crates/plugins/README.md)**: Plugin discovery and MCP server management.
+- **[`lsp`](crates/lsp/README.md)**: Workspace context extraction via Language Server Protocol.
+- **[`server`](crates/server/README.md)**: Optional HTTP server for remote session orchestration.
 
 ## Roadmap
 
-- Publish packaged release artifacts for public installs
-- Add a repeatable release workflow and longer-lived changelog discipline
-- Expand platform verification beyond the current CI matrix
-- Add more task-focused examples and operator documentation
-- Continue tightening feature coverage and UX polish across the Rust implementation
+- [ ] **TUI Elements**: Rich progress visualization and interactive dashboard.
+- [ ] **Advanced Memory**: Long-term memory management and RAG-based context injection.
+- [ ] **Public Artifacts**: Automated release packaging for macOS/Linux/Windows.
+- [ ] **Custom Themes**: Highly tailorable markdown and terminal styling.
+- [ ] **Sub-Agent Orchestration**: Native support for spawning specialized child-agents for complex tasks.
 
 ## Release notes
 

@@ -1,35 +1,52 @@
 # Claw Server
 
-The `server` crate provides a lightweight web service for remote monitoring and management of Claw Code sessions. It uses a high-performance, asynchronous architecture powered by the `axum` framework.
+The `server` crate provides an optional HTTP backend for Claw Code, allowing for remote session management, centralized orchestration, and a web-based interface.
 
 ## Architecture
 
-The server acts as a centralized broadcast hub for session events, allowing multiple clients (like a web dashboard or external monitor) to observe the agent's work in real-time.
+Built using **Axum**, the server implements a RESTful API for session lifecycle and a Server-Sent Events (SSE) endpoint for real-time interaction streaming.
 
 ### Key Components
 
-- **Axum Router**: Defines a RESTful API for listing, creating, and retrieving session details.
-- **Broadcaster**: Uses `tokio::sync::broadcast` to push session events (snapshots, new messages) to all connected clients.
-- **SSE Stream**: Provides a real-time Server-Sent Events (SSE) endpoint for low-latency observation of the agent's "thinking" process.
-- **`AppState`**: Manages the in-memory `SessionStore`, which acts as a cache for active sessions before they are fully persisted by the runtime.
+- **`SessionRegistry`**: An in-memory and persistent store of all active and historical agent sessions.
+- **REST API**: Standard endpoints for creating, listing, and querying agent sessions.
+- **SSE Stream**: A high-performance bridge that pipes `runtime` events directly to HTTP clients in real-time.
+- **State Partitioning**: Logical separation of session data to ensure multi-user isolation (where configured).
 
-## API Endpoints
+## Function-Level Documentation
 
-- **`POST /sessions`**: Create a new interactive session.
-- **`GET /sessions`**: List all active managed sessions.
-- **`GET /sessions/{id}`**: Retrieve the full state (snapshot) of a session.
-- **`GET /sessions/{id}/events`**: Subscribe to a real-time SSE stream of session events.
-- **`POST /sessions/{id}/message`**: (Draft) Inject a message directly into an active session.
+| Function / Method | Description |
+| :--- | :--- |
+| **`app`** | The main router definition, including middleware for tracing, timeout, and CORS. |
+| **`create_session`** | Generates a new `SessionId` and initializes a `ConversationRuntime` in the background. |
+| **`stream_session_events`** | Upgrades an HTTP request to an SSE stream to provide real-time updates of agent "thinking" and tool calls. |
+| **`list_sessions`** | Returns a paginated list of available session metadata and cumulative costs. |
+| **`send_message`** | Injects a new user message into an existing session, triggering the agentic loop. |
+
+## Developer Guide
+
+### Running as a Service
+You can launch the server as a standalone daemon:
+```bash
+cargo run --bin claw -- server # (Planned CLI entry point)
+```
+
+### API Usage
+The server follows a "Fire and Forget" then "Stream" pattern:
+1. `POST /sessions` to create.
+2. `GET /sessions/{id}/events` to subscribe to the streaming response.
+3. `POST /sessions/{id}/message` to interact.
 
 ## Current Status
 
-- [x] Axum-based REST API
-- [x] Real-time SSE event broadcasting
-- [x] Snapshot/Message event model
-- [x] Multi-client subscription support
+- [x] **Axum integration**: High-performance, concurrent request handling.
+- [x] **SSE Streaming**: Full parity with the CLI's native streaming experience.
+- [x] **Session persistence**: Shared state management between the server and local CLI files.
+- [x] **Unit Testing**: robust coverage of the session lifecycle and event piping.
 
 ## Future Work
 
-- [ ] **Authentication**: Secure the API with OAuth2 or API tokens.
-- [ ] **Web UI**: A built-in dashboard for visual session management.
-- [ ] **Remote Control**: Full bidirectional control over the REPL via the API.
+- [ ] **Authentication Middleware**: Adding JWT or OAuth2 protection to the API endpoints.
+- [ ] **Web UI**: A first-party frontend for interacting with agents via a browser.
+- [ ] **Multi-tenant isolation**: Encrypted storage and per-user workspace sandboxing.
+- [ ] **Deployment Templates**: Docker and Kubernetes configurations for cloud hosting.

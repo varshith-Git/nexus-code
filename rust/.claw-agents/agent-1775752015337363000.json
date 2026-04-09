@@ -1,0 +1,14 @@
+{
+  "agentId": "agent-1775752015337363000",
+  "name": "verify-the-branch",
+  "description": "Verify the branch",
+  "subagentType": "Explore",
+  "model": "claude-opus-4-6",
+  "status": "failed",
+  "outputFile": "/Users/as-mac-0272/Desktop/sass/cc/rust/.claw-agents/agent-1775752015337363000.md",
+  "manifestFile": "/Users/as-mac-0272/Desktop/sass/cc/rust/.claw-agents/agent-1775752015337363000.json",
+  "createdAt": "1775752015",
+  "startedAt": "1775752015",
+  "completedAt": "1775752015",
+  "error": "Missing Anthropic credentials. To fix this, set the environment variable:\n  export ANTHROPIC_API_KEY=\"your-api-key\"\n(alternatively, use: ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN)"
+}

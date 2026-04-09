@@ -27,6 +27,8 @@ pub enum ProviderClient {
     Gemini(GeminiClient),
     DeepSeek(OpenAiCompatClient),
     OpenRouter(OpenAiCompatClient),
+    Ollama(OpenAiCompatClient),
+    Local(OpenAiCompatClient),
 }
 
 impl ProviderClient {
@@ -59,6 +61,12 @@ impl ProviderClient {
             ProviderKind::OpenRouter => Ok(Self::OpenRouter(OpenAiCompatClient::from_env(
                 OpenAiCompatConfig::openrouter(),
             )?)),
+            ProviderKind::Ollama => Ok(Self::Ollama(OpenAiCompatClient::from_env(
+                OpenAiCompatConfig::ollama(),
+            )?)),
+            ProviderKind::LocalOpenAICompat => Ok(Self::Local(OpenAiCompatClient::from_env(
+                OpenAiCompatConfig::local_compat(),
+            )?)),
         }
     }
 
@@ -71,6 +79,34 @@ impl ProviderClient {
             Self::Gemini(_) => ProviderKind::Gemini,
             Self::DeepSeek(_) => ProviderKind::DeepSeek,
             Self::OpenRouter(_) => ProviderKind::OpenRouter,
+            Self::Ollama(_) => ProviderKind::Ollama,
+            Self::Local(_) => ProviderKind::LocalOpenAICompat,
+        }
+    }
+
+    pub async fn check_health(&self) -> Result<(), ApiError> {
+        match self {
+            Self::Ollama(client) | Self::Local(client) => {
+                let url = format!("{}/models", client.base_url());
+                let resp = reqwest::Client::new()
+                    .get(&url)
+                    .timeout(std::time::Duration::from_millis(1500))
+                    .send()
+                    .await
+                    .map_err(ApiError::Http)?;
+
+                if !resp.status().is_success() {
+                    return Err(ApiError::Api {
+                        status: resp.status(),
+                        error_type: None,
+                        message: Some("Local server returned error status".to_string()),
+                        body: String::new(),
+                        retryable: false,
+                    });
+                }
+                Ok(())
+            }
+            _ => Ok(()), // Health checks for hosted models aren't strictly necessary eagerly
         }
     }
 
@@ -80,7 +116,12 @@ impl ProviderClient {
     ) -> Result<MessageResponse, ApiError> {
         match self {
             Self::ClawApi(client) => send_via_provider(client, request).await,
-            Self::Xai(client) | Self::OpenAi(client) | Self::DeepSeek(client) | Self::OpenRouter(client) => {
+            Self::Xai(client) 
+            | Self::OpenAi(client) 
+            | Self::DeepSeek(client) 
+            | Self::OpenRouter(client) 
+            | Self::Ollama(client)
+            | Self::Local(client) => {
                 send_via_provider(client, request).await
             }
             Self::Gemini(client) => send_via_provider(client, request).await,
@@ -95,7 +136,12 @@ impl ProviderClient {
             Self::ClawApi(client) => stream_via_provider(client, request)
                 .await
                 .map(MessageStream::ClawApi),
-            Self::Xai(client) | Self::OpenAi(client) | Self::DeepSeek(client) | Self::OpenRouter(client) => {
+            Self::Xai(client) 
+            | Self::OpenAi(client) 
+            | Self::DeepSeek(client) 
+            | Self::OpenRouter(client)
+            | Self::Ollama(client)
+            | Self::Local(client) => {
                 stream_via_provider(client, request)
                     .await
                     .map(MessageStream::OpenAiCompat)

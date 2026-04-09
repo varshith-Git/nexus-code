@@ -79,6 +79,26 @@ impl OpenAiCompatConfig {
     }
 
     #[must_use]
+    pub const fn ollama() -> Self {
+        Self {
+            provider_name: "Ollama",
+            api_key_env: "OLLAMA_API_KEY",
+            base_url_env: "OLLAMA_BASE_URL",
+            default_base_url: "http://localhost:11434/v1",
+        }
+    }
+
+    #[must_use]
+    pub const fn local_compat() -> Self {
+        Self {
+            provider_name: "Local",
+            api_key_env: "LOCAL_API_KEY",
+            base_url_env: "LOCAL_BASE_URL",
+            default_base_url: "http://localhost:1234/v1",
+        }
+    }
+
+    #[must_use]
     pub fn credential_env_vars(self) -> &'static [&'static str] {
         match self.provider_name {
             "xAI" => XAI_ENV_VARS,
@@ -116,11 +136,16 @@ impl OpenAiCompatClient {
     }
 
     pub fn from_env(config: OpenAiCompatConfig) -> Result<Self, ApiError> {
-        let Some(api_key) = read_env_non_empty(config.api_key_env)? else {
-            return Err(ApiError::missing_credentials(
-                config.provider_name,
-                config.credential_env_vars(),
-            ));
+        let is_local = config.provider_name == "Ollama" || config.provider_name == "Local";
+        let api_key = match read_env_non_empty(config.api_key_env)? {
+            Some(key) => key,
+            None if is_local => "local".to_string(),
+            None => {
+                return Err(ApiError::missing_credentials(
+                    config.provider_name,
+                    config.credential_env_vars(),
+                ));
+            }
         };
         Ok(Self::new(api_key, config))
     }
@@ -142,6 +167,11 @@ impl OpenAiCompatClient {
         self.initial_backoff = initial_backoff;
         self.max_backoff = max_backoff;
         self
+    }
+
+    #[must_use]
+    pub fn base_url(&self) -> &str {
+        &self.base_url
     }
 
     pub async fn send_message(
