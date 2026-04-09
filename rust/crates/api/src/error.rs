@@ -67,7 +67,7 @@ impl Display for ApiError {
                 let example_var = env_vars.first().copied().unwrap_or("API_KEY");
                 write!(
                     f,
-                    "Missing {provider} credentials. To fix this, set the environment variable:\n  export {example_var}=\"your-api-key\"\n(alternatively, use: {vars})"
+                    "Missing {provider} credentials. To fix this, set the environment variable:\n  export {example_var}=\"your-api-key\"\n(alternatively, use: {vars})\n\nTip: Use the --local flag to run using a local LLM (Ollama or LM Studio)."
                 )
             }
             Self::ExpiredOAuthToken => {

@@ -131,8 +131,9 @@ fn auto_detect_local_model() -> String {
         Some(api::ProviderKind::Ollama) => "ollama/deepseek-coder-v2".to_string(), // Better default proxy for ollama
         Some(api::ProviderKind::LocalOpenAICompat) => "local/lmstudio".to_string(),
         _ => {
-            eprintln!("Failed to detect any local LLM runner (Ollama or LM Studio).");
-            eprintln!("Falling back to Claude...");
+            eprintln!("No local LLM runners (Ollama/LM Studio) detected on standard ports.");
+            eprintln!("To use a local model, ensure Ollama or LM Studio is running.");
+            eprintln!("Falling back to Cloud (Claude)...");
             "claude-opus-4-6".to_string()
         }
     }
@@ -1170,6 +1171,9 @@ impl LiveCli {
         let has_claw_md = cwd
             .as_ref()
             .is_some_and(|path| path.join("CLAW.md").is_file());
+        let model_display = &self.model;
+        let is_local = model_display.starts_with("ollama/") || model_display.starts_with("local/");
+        
         let mut lines = vec![
             format!(
                 "{} {}",
@@ -1186,7 +1190,9 @@ impl LiveCli {
             ),
             format!("  Workspace        {workspace_summary}"),
             format!("  Directory        {cwd_display}"),
-            format!("  Model            {}", self.model),
+            format!("  Mode             {}", if is_local { "Local (Privacy-First)" } else { "Cloud (API)" }),
+            format!("  Model            {}", model_display),
+            format!("  Providers        Local (Ollama, LM Studio) · Cloud (Claude, Gemini, DeepSeek, Groq)"),
             format!("  Permissions      {}", self.permission_mode.as_str()),
             format!("  Session          {}", self.session.id),
             format!(

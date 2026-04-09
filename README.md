@@ -1,8 +1,21 @@
 # Claw Code
 
-Claw Code is a local coding-agent CLI implemented in safe Rust. It is **Claude Code inspired** and developed as a **clean-room implementation**: it aims for a strong local agent experience, but it is **not** a direct port or copy of Claude Code.
+Claw Code is a high-performance, local-first coding agent. While it was originally built upon the core Rust implementation from [ultraworkers/claw-code](https://github.com/ultraworkers/claw-code), it has since been extensively evolved with an focus on parallel execution, privacy, and multi-model support.
 
 The code and primary implementation live in the **[`rust/`](rust/)** directory.
+
+## Origins & Philosophy
+
+Born from a trace, refined for sovereignty. 
+
+This project began when an accidental source map leak on npm provided a rare glimpse into the mechanics of high-tier agentic interfaces. While the community scrambled to reconstruct the logic, I saw a bigger opportunity: to take those foundations and evolve them into something **faster**, **private**, and **model-agnostic**.
+
+My core philosophy for Claw Code is built on two pillars:
+
+1.  **Privacy First**: No developer should be forced to send their proprietary code to the cloud for intelligence. By integrating native support for **Ollama** and **LM Studio**, Claw Code empowers you to run world-class agents entirely on your local silicon.
+2.  **Uncompromising Speed**: Agentic loops are traditionally slow. I implemented a **Parallel Tool Execution** engine in Rust that handles complex multi-file tasks concurrently, slashing latency and making the agent feel like a real-time extension of your own thought process.
+
+Whether you are using **Gemini**, **DeepSeek**, **OpenRouter**, or a **Local Llama**, Claw Code provides the same high-performance, secure, and extensible experience.
 
 ## Current status
 
@@ -31,12 +44,32 @@ For supported platforms, you can use the built-in OAuth flow:
 cargo run --bin claw -- login
 ```
 
-## Quick Start (Build & Run)
+## Install and Run
 
+### One-liner Install (Easiest)
+Run the automated installer to download and install the pre-built binary for your system:
+```bash
+curl -sSL https://raw.githubusercontent.com/varshith-Git/nexus-code/main/install.sh | sh
+```
+
+### Manual Installation (From Source)
+If you prefer to build from source:
 ```bash
 cd rust/
-cargo build --release -p claw-cli
-./target/release/claw
+cargo install --path crates/claw-cli --locked
+```
+
+## Quick Start (Run)
+Once installed, you can start using Claw Code immediately:
+```bash
+# Start interactive REPL
+claw
+
+# Start REPL with local model auto-detection
+claw --local
+
+# One-shot prompt
+claw prompt "summarize this workspace"
 ```
 
 ## Supported capabilities
@@ -64,6 +97,10 @@ cargo build --release -p claw-cli
 - [ ] **TUI Elements**: Rich progress visualization and interactive dashboard.
 - [ ] **Advanced Memory**: Long-term memory management and RAG-based context injection.
 - [ ] **Public Artifacts**: Automated release packaging for macOS/Linux/Windows.
+
+## Acknowledgements
+
+Special thanks to the team at **[ultraworkers](https://github.com/ultraworkers)** for providing the initial foundation of the Claw Code Rust workspace. This project serves as an evolution of that work, optimized for extreme speed and local-first sovereignty.
 
 ## License
 
