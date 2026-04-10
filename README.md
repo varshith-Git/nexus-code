@@ -82,15 +82,98 @@ claw prompt "summarize this workspace"
 - **Granular Permissions**: Fine-grained security modes (`read-only`, `workspace-write`, `danger-full-access`).
 - **Slash Commands**: High-level controls for history compaction, cost tracking, git workflows, and more.
 
-## Architecture (Folders in `rust/`)
+## Architecture
 
-- **[`claw-cli`](rust/crates/claw-cli/README.md)**: User-facing binary and REPL engine.
-- **[`api`](rust/crates/api/README.md)**: Unified provider clients and streaming SSE parser.
-- **[`runtime`](rust/crates/runtime/README.md)**: The "brain" — handles the agentic loop, parallel execution, and permissions.
-- **[`tools`](rust/crates/tools/README.md)**: Built-in toolset (Filesystem, Shell, Web Search).
-- **[`commands`](rust/crates/commands/README.md)**: REPL slash-command handlers.
-- **[`plugins`](rust/crates/plugins/README.md)**: MCP server management.
-- **[`lsp`](rust/crates/lsp/README.md)**: Workspace context via Language Server Protocol.
+The diagram below shows the full system design, highlighting the three core innovations: **parallel tool execution**, **multi-provider routing**, and **local LLM detection**.
+
+```mermaid
+flowchart TD
+    User(["👤 Developer"])
+
+    subgraph CLI ["claw-cli  ·  User Interface"]
+        REPL["Interactive REPL\n(Vim mode, Markdown rendering)"]
+        OneShot["One-shot Prompt\nclaw prompt '...'"]
+        Slash["Slash Commands\n/compact /model /cost /commit"]
+    end
+
+    subgraph Runtime ["runtime  ·  Agentic Brain"]
+        Loop["Conversation Loop\n(Turn Manager)"]
+        Repair["JSON Repair Layer\n(Heals malformed tool calls)"]
+        Parallel["⚡ Parallel Tool Executor\n(std::thread::scope)"]
+        Permissions["Permission Policy\nread-only · workspace · danger"]
+        Session["Session & Usage Tracker"]
+    end
+
+    subgraph Tools ["tools  ·  Built-in Capabilities"]
+        direction LR
+        FS["📁 Filesystem\nread · write · edit · glob · grep"]
+        Shell["🖥️ Shell\nbash execution"]
+        Web["🌐 Web\nsearch · fetch"]
+        Agent["🤖 Sub-Agent\nspawn child agents"]
+        Skill["📚 Skill Loader\ndomain experts"]
+    end
+
+    subgraph Providers ["api  ·  Provider Layer"]
+        Router["Model Router\n(ProviderKind detection)"]
+
+        subgraph Cloud ["☁️ Cloud Providers"]
+            Claude["Anthropic\nClaude 3/4"]
+            Gemini["Google\nGemini 2.x"]
+            DeepSeek["DeepSeek\nR1 · V3"]
+            Grok["xAI\nGrok"]
+            OpenRouter["OpenRouter\n200+ models"]
+        end
+
+        subgraph Local ["🔒 Local Providers  (Zero-cost, Private)"]
+            Ollama["Ollama\nlocalhost:11434"]
+            LMStudio["LM Studio\nlocalhost:1234"]
+        end
+    end
+
+    subgraph Plugins ["plugins  ·  Extensions"]
+        MCP["MCP Servers\n(Stdio / SSE)"]
+    end
+
+    User --> CLI
+    REPL --> Loop
+    OneShot --> Loop
+    Slash --> Loop
+
+    Loop --> Repair
+    Repair --> Parallel
+
+    Parallel -->|"concurrent"| FS
+    Parallel -->|"concurrent"| Shell
+    Parallel -->|"concurrent"| Web
+    Parallel -->|"concurrent"| Agent
+    Parallel -->|"concurrent"| Skill
+    Parallel -->|"concurrent"| MCP
+
+    Loop --> Permissions
+    Loop --> Session
+    Loop --> Router
+
+    Router --> Claude
+    Router --> Gemini
+    Router --> DeepSeek
+    Router --> Grok
+    Router --> OpenRouter
+    Router -->|"--local flag\nauto-detect"| Ollama
+    Router -->|"--local flag\nauto-detect"| LMStudio
+```
+
+### Crate Breakdown
+
+| Crate | Responsibility |
+| :--- | :--- |
+| **[`claw-cli`](rust/crates/claw-cli/README.md)** | User-facing binary, REPL engine, local model autodetect |
+| **[`api`](rust/crates/api/README.md)** | Unified provider router, SSE streaming, local LLM detection |
+| **[`runtime`](rust/crates/runtime/README.md)** | Agentic loop, parallel execution, JSON repair, permissions |
+| **[`tools`](rust/crates/tools/README.md)** | Built-in toolset (Filesystem, Shell, Web, Sub-agents) |
+| **[`commands`](rust/crates/commands/README.md)** | REPL slash-command registry and handlers |
+| **[`plugins`](rust/crates/plugins/README.md)** | MCP server lifecycle and tool aggregation |
+| **[`lsp`](rust/crates/lsp/README.md)** | Workspace context extraction via Language Server Protocol |
+
 
 ## Roadmap
 
